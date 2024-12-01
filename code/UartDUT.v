@@ -169,6 +169,180 @@ module receptor (
     end
 endmodule
 
+// *MODULO 2*
+
+module transmitter_2 (
+    input wire clk,              // Reloj del sistema
+    input wire rst,              // Señal de reset
+    input wire [7:0] data_in_2,    // Datos paralelos a transmitir
+    input wire start_2,            // Señal de inicio de transmisión
+    output reg tx_2,               // Línea serial de salida
+    output reg ready_2,            // Señal para indicar que está listo
+    output reg [2:0] state_2       // Estado actual para monitoreo
+);
+    // Parámetros de estado
+    parameter IDLE = 3'b000, START = 3'b001, DATA = 3'b010, PARITY = 3'b011, STOP = 3'b100;
+
+    reg [3:0] sample_count_2;      // Contador para sincronización
+    reg [3:0] bit_index_2;         // Contador de bits de datos
+    reg [7:0] data_buffer_2;       // Buffer para los datos a transmitir
+    reg parity_bit_2;              // Bit de paridad
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state_2 <= IDLE;
+            tx_2 <= 1'b1;          // Línea inactiva (alto)
+            ready_2 <= 1'b1;       // Listo para recibir nuevos datos
+            bit_index_2 <= 0;
+            data_buffer_2 <= 8'b0;
+            parity_bit_2 <= 0;
+            sample_count_2 <= 0;
+        end else begin
+            case (state_2)
+                IDLE: begin
+                    tx_2 <= 1'b1; // Línea inactiva
+                    ready_2 <= 1'b1;
+                    if (start_2) begin
+                        data_buffer_2 <= data_in_2;
+                        parity_bit_2 <= ^data_in_2;
+                        bit_index_2 <= 0;
+                        sample_count_2 <= 0;
+                        state_2 <= START;
+                        ready_2 <= 1'b0;
+                    end
+                end
+
+                START: begin
+                    tx_2 <= 1'b0; // Bit de inicio
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        state_2 <= DATA;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+
+                DATA: begin
+                    tx_2 <= data_buffer_2[bit_index_2];
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        if (bit_index_2 == 7) state_2 <= PARITY;
+                        else bit_index_2 <= bit_index_2 + 1;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+
+                PARITY: begin
+                    tx_2 <= parity_bit_2;
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        state_2 <= STOP;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+
+                STOP: begin
+                    tx_2 <= 1'b1; // Bit de parada
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        state_2 <= IDLE;
+                        ready_2 <= 1'b1;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+            endcase
+        end
+    end
+endmodule
+
+module receptor_2 (
+    input wire clk,              // Reloj UART
+    input wire rst,              // Señal de reset
+    input wire rx_2,               // Línea serial de entrada
+    output reg [7:0] data_out_2,   // Salida paralela de datos
+    output reg valid_2,            // Señal para indicar datos válidos
+    output reg [2:0] state_2       // Estado actual para monitoreo
+);
+    // Parámetros de estado
+    parameter IDLE = 3'b000, START = 3'b001, DATA = 3'b010, PARITY = 3'b011, STOP = 3'b100;
+
+    reg [3:0] bit_index_2;         // Contador de bits
+    reg [3:0] sample_count_2;      // Contador para sincronización
+    reg [7:0] data_buffer_2;       // Buffer para los datos recibidos
+    reg parity_bit_2;              // Bit de paridad recibido
+    reg calculated_parity_2;       // Paridad calculada
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state_2 <= IDLE;
+            valid_2 <= 1'b0;
+            data_out_2 <= 8'b0;
+            data_buffer_2 <= 8'b0;
+            parity_bit_2 <= 1'b0;
+            calculated_parity_2 <= 1'b0;
+            sample_count_2 <= 0;
+            bit_index_2 <= 0;
+        end else begin
+            case (state_2)
+                IDLE: begin
+                    valid_2 <= 1'b0;
+                    if (!rx_2) state_2 <= START; // Detectar bit de inicio
+                end
+
+                START: begin
+                    if (sample_count_2 == 7) begin
+                        sample_count_2 <= 0;
+                        if (!rx_2) state_2 <= DATA; // Validar bit de inicio
+                        else state_2 <= IDLE;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+
+                DATA: begin
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        data_buffer_2[bit_index_2] <= rx_2; // Leer bit recibido
+                        if (bit_index_2 == 7) state_2 <= PARITY;
+                        else bit_index_2 <= bit_index_2 + 1;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+
+                    end
+                end
+
+                PARITY: begin
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        parity_bit_2 <= rx_2;
+                        calculated_parity_2 <= ^data_buffer_2;
+                        if (calculated_parity_2 == parity_bit_2) state_2 <= STOP;
+                        else state_2 <= IDLE; // Paridad incorrecta
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+
+                STOP: begin
+                    if (sample_count_2 == 15) begin
+                        sample_count_2 <= 0;
+                        if (rx_2) begin
+                            data_out_2 <= data_buffer_2;
+                            valid_2 <= 1'b1;
+                        end
+                        state_2 <= IDLE;
+                    end else begin
+                        sample_count_2 <= sample_count_2 + 1;
+                    end
+                end
+            endcase
+        end
+    end
+endmodule
+
 
 
 

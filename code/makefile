@@ -1,14 +1,14 @@
 # Nombre del archivo de simulación
-TOP_MODULE = UART_FullDuplex_tb
+TOP_MODULE = tb
 SIM_TOOL = iverilog
-WAVE_FILE = dump.vcd
+WAVE_FILE = uart_full_duplex_system_tb.vcd
 
 # Regla por defecto
 all: compile simulate view
 
 # 1. Compilar los archivos Verilog
 compile:
-	$(SIM_TOOL) -o simulation $(TOP_MODULE).v UART_FullDuplex.v
+	$(SIM_TOOL) -o simulation $(TOP_MODULE).v UartDUT.v
 
 # 2. Simular y generar archivo .vcd
 simulate:

@@ -1,3 +1,108 @@
+module uart_full_duplex_system (
+    input wire clk_sys,
+    input wire rst,
+    input wire tx_start,
+    input wire tx_start_2,
+    input wire [7:0] tx_data_in,
+    input wire [7:0] tx_data_in_2,
+    output wire [7:0] rx_data_out,
+    output wire [7:0] rx_data_out_2,
+    output wire tx_ready,
+    output wire tx_ready_2,
+    output wire rx_valid,
+    output wire rx_valid_2,
+    output wire [2:0] tx_state,
+    output wire [2:0] tx_state_2,
+    output wire [2:0] rx_state,
+    output wire [2:0] rx_state_2
+);
+
+    wire tx, tx_2;  // Líneas seriales de salida de los transmisores
+
+    // Generar clk_uart (mitad de la frecuencia del clk_sys)
+    reg clk_uart;
+    always @(posedge clk_sys or posedge rst) begin
+        if (rst) begin
+            clk_uart <= 0;
+        end else begin
+            clk_uart <= ~clk_uart;
+        end
+    end
+
+    // Instancia del primer módulo de full-duplex
+    uart_full_duplex module1 (
+        .clk_uart(clk_uart),  // Pasar clk_uart generado
+        .rst(rst),
+        .tx_start(tx_start),
+        .tx_data_in(tx_data_in),
+        .rx(tx_2), // El receptor del módulo 1 recibe desde el transmisor del módulo 2
+        .tx(tx),   // Transmisor del módulo 1
+        .rx_data_out(rx_data_out),
+        .tx_ready(tx_ready),
+        .rx_valid(rx_valid),
+        .tx_state(tx_state),
+        .rx_state(rx_state)
+    );
+
+    // Instancia del segundo módulo de full-duplex
+    uart_full_duplex module2 (
+        .clk_uart(clk_uart),  // Pasar clk_uart generado
+        .rst(rst),
+        .tx_start(tx_start_2),
+        .tx_data_in(tx_data_in_2),
+        .rx(tx),  // El receptor del módulo 2 recibe desde el transmisor del módulo 1
+        .tx(tx_2), // Transmisor del módulo 2
+        .rx_data_out(rx_data_out_2),
+        .tx_ready(tx_ready_2),
+        .rx_valid(rx_valid_2),
+        .tx_state(tx_state_2),
+        .rx_state(rx_state_2)
+    );
+
+endmodule
+
+
+
+
+module uart_full_duplex (
+    input wire clk_uart,
+    input wire rst,
+    input wire tx_start,
+    input wire [7:0] tx_data_in,
+    input wire rx,
+    output wire tx,
+    output wire [7:0] rx_data_out,
+    output wire tx_ready,
+    output wire rx_valid,
+    output wire [2:0] tx_state, // Puerto para el estado del transmisor
+    output wire [2:0] rx_state  // Puerto para el estado del receptor
+);
+
+
+    // Instanciar módulos transmisor y receptor
+    transmitter transmitter_inst (
+        .clk(clk_uart),
+        .rst(rst),
+        .start(tx_start),
+        .data_in(tx_data_in),
+        .tx(tx),
+        .ready(tx_ready),
+        .state(tx_state) // Conectar estado del transmisor
+    );
+
+    receptor receptor_inst (
+        .clk(clk_uart),
+        .rst(rst),
+        .rx(rx),
+        .data_out(rx_data_out),
+        .valid(rx_valid),
+        .state(rx_state) // Conectar estado del receptor
+    );
+
+endmodule
+
+
+
 module transmitter (
     input wire clk,              // Reloj del sistema
     input wire rst,              // Señal de reset
@@ -169,7 +274,58 @@ module receptor (
     end
 endmodule
 
+
+
+
+
+
+
+
+
 // *MODULO 2*
+
+
+
+
+module uart_full_duplex_2 (
+    input wire clk_uart,
+    input wire rst,
+    input wire tx_start_2,
+    input wire [7:0] tx_data_in_2,
+    input wire rx_2,
+    output wire tx_2,
+    output wire [7:0] rx_data_out_2,
+    output wire tx_ready_2,
+    output wire rx_valid_2,
+    output wire [2:0] tx_state_2, // Puerto para el estado del transmisor
+    output wire [2:0] rx_state_2  // Puerto para el estado del receptor
+);
+
+
+    // Instanciar módulos transmisor y receptor
+    transmitter_2 transmitter_inst (
+        .clk(clk_uart),
+        .rst(rst),
+        .start_2(tx_start_2),
+        .data_in_2(tx_data_in_2),
+        .tx_2(tx_2),
+        .ready_2(tx_ready_2),
+        .state_2(tx_state_2) // Conectar estado del transmisor
+    );
+
+    receptor_2 receptor_inst (
+        .clk(clk_uart),
+        .rst(rst),
+        .rx_2(rx_2),
+        .data_out_2(rx_data_out_2),
+        .valid_2(rx_valid_2),
+        .state_2(rx_state_2) // Conectar estado del receptor
+    );
+
+endmodule
+
+
+
 
 module transmitter_2 (
     input wire clk,              // Reloj del sistema
@@ -310,7 +466,6 @@ module receptor_2 (
                         else bit_index_2 <= bit_index_2 + 1;
                     end else begin
                         sample_count_2 <= sample_count_2 + 1;
-
                     end
                 end
 
@@ -342,13 +497,3 @@ module receptor_2 (
         end
     end
 endmodule
-
-
-
-
-
-
-
-
-
-
